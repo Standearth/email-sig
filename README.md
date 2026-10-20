@@ -26,13 +26,13 @@ The URL parameters match the [QR code generator](https://qr.stand.earth) (`Stand
 | `whatsapp` | `WhatsApp:` line |
 | `signal` | `Signal:` line (username, number or `signal.me/#p/...` link) |
 
-Phone numbers are parsed with the same rules as the QR generator, whether they come from a link or are typed in (formatted when you leave the field): `2505091026` → `+1 (250) 509-1026`, `07700900123` → `+44 (0)7700 900123`, `+33612345678` → `+33 6 12 34 56 78`. Anything that isn't a number (like a Signal username) is left as typed. Contact lines appear in the order above, and when any are given they replace the default lines.
+Phone numbers are parsed with the same rules as the QR generator, whether they come from a link or are typed in (formatted when you leave the field): `2505091026` → `+1 (250) 509-1026`, `07700900123` → `+44 (0)7700 900123`, `+33612345678` → `+33 (0)6 12 34 56 78`. Anything that isn't a number (like a Signal username) is left as typed. Contact lines appear in the order above, and when any are given they replace the default lines.
 
 Signature-only extras:
 
 | Param | Meaning |
 | --- | --- |
-| `pronouns` | e.g. `He / Him` |
+| `pronouns` | e.g. `he/him`. Matched to the field's suggestions ignoring case and spaces, so `he/him` becomes `He / Him`. Anything else is kept as given. |
 | `contact` | Extra line as `Label:Value` or `Label:Value\|Ext`. Repeatable. |
 | `note` / `inote` | Footer note / italic footer note. Repeatable. Replaces the default notes. |
 

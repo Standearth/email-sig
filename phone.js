@@ -38,11 +38,12 @@
 
   /**
    * format "E.164" -> "+12505091026"
-   * format "DISPLAY" (default) -> based on vcard-qr's CUSTOM format:
-   *   North America  "+1 (250) 509-1026"  (vcard-qr drops the +1; signatures keep it)
-   *   UK (+44)       "+44 (0)7700 900123"
-   *   elsewhere      "+33 6 12 34 56 78"  (standard international format; vcard-qr's
-   *                  "+33 06 12..." keeps the national trunk 0, which isn't dialable)
+   * format "DISPLAY" (default) -> vcard-qr's CUSTOM format, except North
+   * American numbers keep their +1 for signatures (vcard-qr drops it):
+   *   "+1 (250) 509-1026"
+   *   "+44 (0)7700 900123", "+33 (0)6 12 34 56 78"  trunk 0 in brackets, so the
+   *                                               number reads both ways
+   *   "+52 55 1234 5678", "+39 06 1234 5678"      no trunk 0 (or it's part of the number)
    */
   function format(number, fmt) {
     var result = parse(number);
@@ -50,12 +51,14 @@
     if (fmt === "E.164") return result.format("E.164");
 
     if (result.countryCallingCode === "1") return "+1 " + result.format("NATIONAL");
-    // By calling code: UK numbers can parse as GG/JE/IM or no country at all
-    if (result.countryCallingCode === "44") {
-      var national = result.format("NATIONAL");
-      if (national.charAt(0) === "0") return "+44 (0)" + national.substring(1);
+
+    var international = result.formatInternational();
+    var callingCode = "+" + result.countryCallingCode + " ";
+    var nationalDigits = result.formatNational().replace(/\D/g, "");
+    if (nationalDigits === "0" + result.nationalNumber && international.indexOf(callingCode) === 0) {
+      return callingCode + "(0)" + international.substring(callingCode.length);
     }
-    return result.formatInternational();
+    return international;
   }
 
   /** Looks like a phone number rather than a username or URL. */

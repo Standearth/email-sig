@@ -146,6 +146,17 @@
     })[0];
   }
 
+  // "he/him", "HE / HIM" -> "He / Him": match the suggestions in the
+  // pronouns field ignoring case and spaces; anything else is kept as given.
+  function normalizePronouns(value) {
+    var key = function (v) { return v.toLowerCase().replace(/\s+/g, ""); };
+    var options = document.querySelectorAll("#pronoun-options option");
+    for (var i = 0; i < options.length; i++) {
+      if (key(options[i].value) === key(value || "")) return options[i].value;
+    }
+    return (value || "").trim();
+  }
+
   function fromParams(params) {
     var get = function (k) {
       return (params.get(k) || "").trim();
@@ -171,6 +182,7 @@
     Object.keys(SIMPLE_PARAMS).forEach(function (k) {
       if (get(k)) state[SIMPLE_PARAMS[k]] = get(k);
     });
+    state.pronouns = normalizePronouns(state.pronouns);
 
     var lines = [];
     CONFIG.contactParams.forEach(function (f) {
@@ -634,6 +646,13 @@
   });
   moveOrRemove(els.contacts);
   // Tidy phone numbers when leaving the field, e.g. 2505091026 -> +1 (250) 509-1026
+  els.pronouns.addEventListener("focusout", function () {
+    var normalized = normalizePronouns(els.pronouns.value);
+    if (normalized !== els.pronouns.value) {
+      els.pronouns.value = normalized;
+      update();
+    }
+  });
   els.contacts.addEventListener("focusout", function (e) {
     if (!e.target.classList.contains("value-input")) return;
     var formatted = formatPhone(e.target.value);
