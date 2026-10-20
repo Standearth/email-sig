@@ -58,10 +58,20 @@ No build step. Serve the folder locally, e.g. `python3 -m http.server`, and open
 - `vendor/libphonenumber-min.js` is [libphonenumber-js](https://gitlab.com/catamphetamine/libphonenumber-js) 1.12.10 (MIT), the same version vcard-qr uses: its `bundle/libphonenumber-min.js` from npm.
 - `app.js` handles the form, URL params, copy and download.
 - `assets/img/` holds the hosted images. They're 2× resolution for high-DPI screens: logo 420×90 shown at 210×45, icons 58×58 shown at 29×29.
-- `brand/` holds the full-resolution source logo. It isn't deployed.
+- `brand/` holds the full-resolution source logo and, in `brand/social/`, the SVG masters for icons made with the script below. It isn't deployed.
 - `archive/` holds previous signature versions for reference.
 
 Changing an image file under the same name changes it in **every existing signature**, because the signatures link to the hosted file. If that's not what you want, give the new image a new filename.
+
+## Adding a social network
+
+The icons are white glyphs on black circles, with the glyph 54/96 of the circle's width. `scripts/make-social-icon.sh` makes a new one in that style from any single-path 24×24 SVG. [Simple Icons](https://simpleicons.org) (CC0) has one for most brands:
+
+1. Download the brand's SVG from Simple Icons, and check the brand's own guidelines (Simple Icons links them).
+2. Run `scripts/make-social-icon.sh <name> <downloaded.svg>`. It writes `brand/social/<name>.svg` (the master) and `assets/img/<name>.png` (58×58, what signatures load). It needs ImageMagick 7.
+3. Add an entry to `socials` in `config.js`.
+
+Bluesky and TikTok were made this way, from Simple Icons 16.33.0. They link to `@stand.earth` on both.
 
 ## Hosting (one-time setup)
 

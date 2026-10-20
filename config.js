@@ -14,7 +14,8 @@ window.STAND_SIG_CONFIG = {
   },
 
   // Set enabled: false to drop an icon from newly generated signatures.
-  // Icon files are 58x58, shown at 29x29 (2x density).
+  // Icon files are 58x58, shown at 29x29 (2x density). To add a network,
+  // make its icon with scripts/make-social-icon.sh (see README).
   socials: [
     {
       name: "linkedin",
@@ -39,6 +40,18 @@ window.STAND_SIG_CONFIG = {
       enabled: true,
       href: "https://www.threads.com/@stand.earth",
       file: "assets/img/threads.png",
+    },
+    {
+      name: "bluesky",
+      enabled: true,
+      href: "https://bsky.app/profile/stand.earth",
+      file: "assets/img/bluesky.png",
+    },
+    {
+      name: "tiktok",
+      enabled: true,
+      href: "https://www.tiktok.com/@stand.earth",
+      file: "assets/img/tiktok.png",
     },
     {
       name: "x",
