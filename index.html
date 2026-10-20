@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stand Email Signature</title>
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="assets/img/favicon-32.png"
+    />
+    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <img
+        src="assets/img/stand-logo.png"
+        width="140"
+        height="30"
+        alt="Stand.earth"
+      />
+      <h1>Email signature generator</h1>
+    </header>
+
+    <main class="layout">
+      <form id="sig-form" class="panel form" autocomplete="on" novalidate>
+        <h2>Your details</h2>
+
+        <div class="field-pair">
+          <label class="field">
+            <span>First name</span>
+            <input
+              id="f-first-name"
+              name="first_name"
+              type="text"
+              placeholder="Your"
+              autocomplete="given-name"
+            />
+          </label>
+          <label class="field">
+            <span>Last name</span>
+            <input
+              id="f-last-name"
+              name="last_name"
+              type="text"
+              placeholder="Name"
+              autocomplete="family-name"
+            />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Pronouns <em>(optional)</em></span>
+          <input
+            id="f-pronouns"
+            name="pronouns"
+            type="text"
+            placeholder="e.g. She / Her"
+            list="pronoun-options"
+          />
+          <datalist id="pronoun-options">
+            <option value="She / Her"></option>
+            <option value="He / Him"></option>
+            <option value="They / Them"></option>
+            <option value="She / They"></option>
+            <option value="He / They"></option>
+          </datalist>
+        </label>
+
+        <label class="field">
+          <span>Title</span>
+          <input
+            id="f-title"
+            name="title"
+            type="text"
+            placeholder="Your Job Title"
+            autocomplete="organization-title"
+          />
+        </label>
+
+        <fieldset class="group">
+          <legend>Contact lines</legend>
+          <p class="hint">
+            It's up to you which number(s) you include: one of Stand's main
+            numbers with your extension, your Zoom direct line, or your personal
+            cell. One row per line, e.g. <code>Direct</code> /
+            <code>+1 (360) 555-0123</code>, or <code>Signal</code> /
+            <code>yourname.01</code>. You can use whatever labels you prefer,
+            e.g. <code>O</code> or <code>Office</code>.
+          </p>
+          <div id="contacts" class="rows"></div>
+          <div class="preset-row">
+            <button type="button" class="btn small" id="add-contact">
+              + Add line
+            </button>
+            <span class="hint">Main office number:</span>
+            <span id="office-buttons" class="preset-row"></span>
+          </div>
+        </fieldset>
+
+        <fieldset class="group">
+          <legend>Footer notes</legend>
+          <p class="hint">
+            Small print shown below the logo. Replace anything highlighted in
+            the preview.
+          </p>
+          <p class="hint">
+            Including a land acknowledgement is a personal choice. If you
+            include one, please see our
+            <a id="land-policy" target="_blank" rel="noopener"
+              >policy and best practices document</a
+            >
+            and this
+            <a id="land-guide" target="_blank" rel="noopener"
+              >guide to land acknowledgements</a
+            >.
+          </p>
+          <div id="notes" class="rows"></div>
+          <div class="preset-row">
+            <button type="button" class="btn small" id="add-note">
+              + Add note
+            </button>
+            <span class="hint">Presets:</span>
+            <button
+              type="button"
+              class="btn small ghost"
+              data-preset="workweek"
+            >
+              Four-day week
+            </button>
+            <button type="button" class="btn small ghost" data-preset="land">
+              Land acknowledgement
+            </button>
+            <button type="button" class="btn small ghost" data-preset="sms">
+              SMS notice
+            </button>
+          </div>
+        </fieldset>
+
+        <div class="form-footer">
+          <button type="button" class="btn ghost" id="copy-link">
+            Copy pre-fill link
+          </button>
+          <button type="button" class="btn ghost danger" id="reset">
+            Reset
+          </button>
+        </div>
+      </form>
+
+      <section class="panel output" aria-labelledby="preview-heading">
+        <h2 id="preview-heading">Preview</h2>
+        <div id="warning" class="warning" hidden></div>
+        <div class="preview-frame">
+          <div id="preview" class="sig-preview"></div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn primary" id="copy-rich">
+            Copy signature for Gmail
+          </button>
+          <button type="button" class="btn" id="copy-html">
+            Copy HTML code
+          </button>
+          <button type="button" class="btn" id="download">
+            Download .html
+          </button>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+
+        <details class="help">
+          <summary>How to add it to Gmail</summary>
+          <ol>
+            <li>Click <strong>Copy signature for Gmail</strong> above.</li>
+            <li>
+              In Gmail, open <strong>Settings</strong> (gear icon) →
+              <strong>See all settings</strong> → <strong>General</strong>.
+            </li>
+            <li>
+              Under <strong>Signature</strong>, click
+              <strong>Create new</strong> (or select your existing one) and
+              paste into the editor box.
+            </li>
+            <li>
+              Scroll to the bottom and click <strong>Save Changes</strong>.
+            </li>
+          </ol>
+          <p>
+            For other email clients (Outlook, Apple Mail, etc.) use
+            <strong>Download .html</strong> or <strong>Copy HTML code</strong>.
+          </p>
+        </details>
+
+        <details class="help">
+          <summary>HTML code</summary>
+          <pre id="code" class="code"></pre>
+        </details>
+      </section>
+    </main>
+
+    <template id="contact-row">
+      <div class="row contact-row">
+        <input
+          class="label-input"
+          type="text"
+          placeholder="Label"
+          aria-label="Label"
+        />
+        <input
+          class="value-input"
+          type="text"
+          placeholder="+1 (000) 000-0000"
+          aria-label="Value"
+        />
+        <input
+          class="ext-input"
+          type="text"
+          placeholder="ext"
+          aria-label="Extension (optional)"
+          title="Extension (optional)"
+          inputmode="numeric"
+        />
+        <div class="row-tools">
+          <button
+            type="button"
+            class="icon-btn"
+            data-move="-1"
+            aria-label="Move up"
+            title="Move up"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            data-move="1"
+            aria-label="Move down"
+            title="Move down"
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            class="icon-btn danger"
+            data-remove
+            aria-label="Remove line"
+            title="Remove"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <template id="note-row">
+      <div class="row note-row">
+        <textarea class="note-input" rows="3" aria-label="Note text"></textarea>
+        <div class="row-tools">
+          <label class="italic-toggle" title="Italic"
+            ><input type="checkbox" class="italic-input" />
+            <em>Italic</em></label
+          >
+          <button
+            type="button"
+            class="icon-btn"
+            data-move="-1"
+            aria-label="Move up"
+            title="Move up"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            data-move="1"
+            aria-label="Move down"
+            title="Move down"
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            class="icon-btn danger"
+            data-remove
+            aria-label="Remove note"
+            title="Remove"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <script src="vendor/libphonenumber-min.js"></script>
+    <script src="phone.js"></script>
+    <script src="config.js"></script>
+    <script src="signature.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
