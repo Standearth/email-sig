@@ -39,10 +39,63 @@
     );
   }
 
+  /** An http(s) URL, normalised, or "" for anything else (javascript:, mailto:, junk). */
+  function safeHref(href) {
+    try {
+      var u = new URL(href);
+      if (u.protocol !== "https:" && u.protocol !== "http:") return "";
+      return u.href.replace(/\[/g, "%5B").replace(/\]/g, "%5D");
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function noteText(s) {
+    return esc(s).replace(/\r?\n/g, "<br />");
+  }
+
+  /**
+   * Where each link applies in a note: the first case-insensitive occurrence
+   * of its text that doesn't overlap an earlier link. Shared with the editor's
+   * in-box highlighting so the two always agree.
+   * Returns [{start, end, href, link}] sorted by start.
+   */
+  function linkRanges(raw, links) {
+    var lower = raw.toLowerCase();
+    var ranges = [];
+    links.forEach(function (l) {
+      var href = l && l.text ? safeHref(l.href) : "";
+      if (!href) return;
+      var needle = l.text.toLowerCase();
+      for (var i = lower.indexOf(needle); i !== -1; i = lower.indexOf(needle, i + 1)) {
+        var end = i + needle.length;
+        var overlaps = ranges.some(function (r) { return i < r.end && end > r.start; });
+        if (!overlaps) {
+          ranges.push({ start: i, end: end, href: href, link: l });
+          break;
+        }
+      }
+    });
+    return ranges.sort(function (a, b) { return a.start - b.start; });
+  }
+
+  /** Escape a note and wrap its links. One pass, so links can't nest. */
+  function linkify(raw, links) {
+    var out = "";
+    var pos = 0;
+    linkRanges(raw, links).forEach(function (r) {
+      out += noteText(raw.slice(pos, r.start)) +
+        '<a href="' + esc(r.href) + '" target="_blank" rel="nofollow" style="color: ' + TEXT_DARK + '; text-decoration: underline;">' +
+        noteText(raw.slice(r.start, r.end)) + "</a>";
+      pos = r.end;
+    });
+    return out + noteText(raw.slice(pos));
+  }
+
   /**
    * Build the signature HTML.
    *
-   * data: { firstName, lastName, pronouns, title, contacts: [{label, value, ext}], notes: [{text, italic, template, highlight}] }
+   * data: { firstName, lastName, pronouns, title, contacts: [{label, value, ext}], notes: [{text, italic, template, highlight, links: [{text, href}]}] }
    *   While a note's text still matches its template, its `highlight` part
    *   (or the whole note) is shown as placeholder.
    * opts.assetBase: absolute base URL that asset paths are resolved against.
@@ -117,13 +170,8 @@
     var noteRows = (data.notes || [])
       .filter(function (n) { return (n.text || "").trim(); })
       .map(function (n) {
-        var text = esc(n.text.trim()).replace(/\r?\n/g, "<br />");
-        (CONFIG.noteLinks || []).forEach(function (l) {
-          var re = new RegExp(esc(l.text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-          text = text.replace(re, function (m) {
-            return '<a href="' + esc(l.href) + '" target="_blank" rel="nofollow" style="color: ' + TEXT_DARK + '; text-decoration: underline;">' + m + "</a>";
-          });
-        });
+        // The person's own links first, then site-wide ones like "privacy policy"
+        var text = linkify(n.text.trim(), (n.links || []).concat(CONFIG.noteLinks || []));
         var untouched = n.template && n.text.trim() === n.template.trim();
         if (untouched && n.highlight) {
           var h = esc(n.highlight);
@@ -131,8 +179,8 @@
         } else if (untouched) {
           text = mark(text); // untouched example text: all of it needs replacing
         } else {
-          // Highlight any remaining [bracketed] placeholders
-          text = text.replace(/\[[^\]]+\]/g, function (m) { return mark(m); });
+          // Highlight any remaining [bracketed] placeholders (never across a link's tags)
+          text = text.replace(/\[[^\]<>]+\]/g, function (m) { return mark(m); });
         }
         return (
           '<tr><td style="border-collapse: collapse; padding-bottom: 16px;"><p style="margin: 0.04px;">' +
@@ -160,5 +208,5 @@
     );
   }
 
-  global.StandSignature = { render: renderSignature };
+  global.StandSignature = { render: renderSignature, safeHref: safeHref, linkRanges: linkRanges };
 })(window);

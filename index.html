@@ -91,12 +91,12 @@
             e.g. <code>O</code> or <code>Office</code>.
           </p>
           <div id="contacts" class="rows"></div>
-          <div class="preset-row">
-            <button type="button" class="btn small" id="add-contact">
-              + Add line
+          <div class="add-bar" role="group" aria-labelledby="add-line-label">
+            <span class="add-bar-label" id="add-line-label">Add a line:</span>
+            <button type="button" class="btn small add-btn" id="add-contact">
+              + Blank line
             </button>
-            <span class="hint">Main office number:</span>
-            <span id="office-buttons" class="preset-row"></span>
+            <span id="office-buttons" class="add-bar-group"></span>
           </div>
         </fieldset>
 
@@ -104,7 +104,9 @@
           <legend>Footer notes</legend>
           <p class="hint">
             Small print shown below the logo. Replace anything highlighted in
-            the preview.
+            the preview. To add a link, select the words in a note and click
+            <strong>🔗 Link</strong> (or press Ctrl/⌘+K). Click a linked word to
+            change or remove its link.
           </p>
           <p class="hint">
             Including a land acknowledgement is a personal choice. If you
@@ -118,35 +120,40 @@
             >.
           </p>
           <div id="notes" class="rows"></div>
-          <div class="preset-row">
-            <button type="button" class="btn small" id="add-note">
-              + Add note
+          <div class="add-bar" role="group" aria-labelledby="add-note-label">
+            <span class="add-bar-label" id="add-note-label">Add a note:</span>
+            <button type="button" class="btn small add-btn" id="add-note">
+              + Blank note
             </button>
-            <span class="hint">Presets:</span>
-            <button
-              type="button"
-              class="btn small ghost"
-              data-preset="workweek"
-            >
-              Four-day week
+            <button type="button" class="btn small add-btn" data-preset="workweek">
+              + Four-day week
             </button>
-            <button type="button" class="btn small ghost" data-preset="land">
-              Land acknowledgement
+            <button type="button" class="btn small add-btn" data-preset="land">
+              + Land acknowledgement
             </button>
-            <button type="button" class="btn small ghost" data-preset="sms">
-              SMS notice
+            <button type="button" class="btn small add-btn" data-preset="sms">
+              + SMS notice
             </button>
           </div>
         </fieldset>
 
         <div class="form-footer">
-          <button type="button" class="btn ghost" id="copy-link">
-            Copy pre-fill link
-          </button>
+          <div class="footer-actions">
+            <button type="button" class="btn" id="bookmark">🔖 Bookmark</button>
+            <button type="button" class="btn ghost" id="copy-link">
+              Copy link
+            </button>
+          </div>
           <button type="button" class="btn ghost danger" id="reset">
             Reset
           </button>
         </div>
+        <p class="hint footer-hint">
+          This page's address holds everything you've entered. Bookmark it to
+          come back and regenerate your signature later, for example when the
+          template is updated.
+        </p>
+        <p id="footer-status" class="status" role="status" aria-live="polite"></p>
       </form>
 
       <section class="panel output" aria-labelledby="preview-heading">
@@ -255,38 +262,85 @@
 
     <template id="note-row">
       <div class="row note-row">
-        <textarea class="note-input" rows="3" aria-label="Note text"></textarea>
-        <div class="row-tools">
-          <label class="italic-toggle" title="Italic"
-            ><input type="checkbox" class="italic-input" />
-            <em>Italic</em></label
-          >
-          <button
-            type="button"
-            class="icon-btn"
-            data-move="-1"
-            aria-label="Move up"
-            title="Move up"
-          >
-            ↑
+        <div class="note-field">
+          <div class="note-backdrop" aria-hidden="true">
+            <div class="note-highlights"></div>
+          </div>
+          <textarea class="note-input" rows="2" aria-label="Note text"></textarea>
+          <div class="link-bubble" role="dialog" aria-label="Link" hidden>
+            <a class="link-bubble-url" target="_blank" rel="noopener"></a>
+            <span class="link-bubble-actions">
+              <button type="button" class="link-bubble-btn" data-link-edit>
+                Edit
+              </button>
+              <button type="button" class="link-bubble-btn danger" data-unlink>
+                Remove
+              </button>
+            </span>
+            <span class="link-bubble-auto">added automatically</span>
+          </div>
+        </div>
+        <div class="note-toolbar">
+          <div class="note-format">
+            <button
+              type="button"
+              class="btn small ghost"
+              data-link
+              title="Link the selected words (Ctrl/⌘+K)"
+            >
+              🔗 Link
+            </button>
+            <label class="italic-toggle"
+              ><input type="checkbox" class="italic-input" />
+              <em>Italic</em></label
+            >
+          </div>
+          <div class="note-arrange">
+            <button
+              type="button"
+              class="icon-btn"
+              data-move="-1"
+              aria-label="Move note up"
+              title="Move up"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              class="icon-btn"
+              data-move="1"
+              aria-label="Move note down"
+              title="Move down"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              class="btn small ghost danger"
+              data-remove
+              aria-label="Remove note"
+            >
+              ✕ Remove
+            </button>
+          </div>
+        </div>
+        <p class="link-msg" role="status" hidden></p>
+        <div class="link-form" hidden>
+          <label class="link-form-label">
+            <span>Link “<span class="link-form-text"></span>” to</span>
+            <input
+              type="url"
+              class="link-url"
+              placeholder="https://…"
+              inputmode="url"
+              autocomplete="url"
+            />
+          </label>
+          <button type="button" class="btn small" data-link-save>
+            Add link
           </button>
-          <button
-            type="button"
-            class="icon-btn"
-            data-move="1"
-            aria-label="Move down"
-            title="Move down"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            class="icon-btn danger"
-            data-remove
-            aria-label="Remove note"
-            title="Remove"
-          >
-            ✕
+          <button type="button" class="btn small ghost" data-link-cancel>
+            Cancel
           </button>
         </div>
       </div>

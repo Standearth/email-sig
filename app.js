@@ -80,6 +80,10 @@
   //   contact=Label:Value|Ext   extra line (repeatable, "|Ext" optional)
   //   note=Text / inote=Text    footer note / italic footer note (repeatable;
   //                             replaces the default notes)
+  //   link=N:Words|https://...  link those words in the Nth note (repeatable)
+  //   no_contacts=1, no_notes=1 the person removed every contact line / note
+  // The page keeps its own URL in this format as you edit, so a bookmark
+  // brings the signature back, rebuilt with whatever the template is then.
   // Params can be in the query string (?a=b) or the hash (#/?a=b), like the
   // QR generator's #/vcard/?a=b links. Empty values are ignored.
 
@@ -168,6 +172,9 @@
         return f.param;
       }),
       "extension",
+      "link",
+      "no_contacts",
+      "no_notes",
     );
     if (
       !relevant.some(function (k) {
@@ -216,15 +223,35 @@
       );
     });
     if (lines.length) state.contacts = lines;
+    else if (get("no_contacts")) state.contacts = [];
 
     var notes = [];
     params.forEach(function (value, key) {
       if ((key === "note" || key === "inote") && value.trim())
-        notes.push({ text: value.trim(), italic: key === "inote" });
+        notes.push(withTemplate({ text: value.trim(), italic: key === "inote" }));
+    });
+    params.getAll("link").forEach(function (raw) {
+      var m = /^(\d+):([^|]+)\|(.+)$/.exec(raw.trim());
+      var note = m && notes[Number(m[1]) - 1];
+      var href = m && StandSignature.safeHref(m[3].trim());
+      if (note && href) (note.links = note.links || []).push({ text: m[2].trim(), href: href });
     });
     if (notes.length) state.notes = notes;
+    else if (get("no_notes")) state.notes = [];
 
     return state;
+  }
+
+  // A note that is still a preset's example text keeps its highlighting
+  function withTemplate(n) {
+    Object.keys(PRESETS).forEach(function (k) {
+      var preset = PRESETS[k];
+      if (preset.template && n.text === preset.template) {
+        n.template = preset.template;
+        if (preset.highlight) n.highlight = preset.highlight;
+      }
+    });
+    return n;
   }
 
   function toParams(state) {
@@ -233,24 +260,38 @@
       var v = (state[SIMPLE_PARAMS[k]] || "").trim();
       if (v) p.set(k, v);
     });
+    // Lines with nothing filled in are just placeholders: leave them out
+    var entries = [];
+    var used = {};
     state.contacts.forEach(function (c) {
       var label = c.label.trim(),
         value = c.value.trim(),
         ext = (c.ext || "").trim();
-      if (!label && !value && !ext) return;
+      if (!value && !ext) return;
       var f = CONFIG.contactParams.filter(function (f) {
         return f.label.toLowerCase() === label.toLowerCase();
       })[0];
-      if (f && !p.has(f.param) && (!ext || f.extensionParam)) {
-        if (value) p.set(f.param, compactPhone(value));
-        if (ext) p.set(f.extensionParam, ext);
+      if (f && (used[f.param] || (ext && !f.extensionParam))) f = null;
+      if (f) used[f.param] = true;
+      entries.push({ label: label, value: value, ext: ext, f: f });
+    });
+    // fromParams() rebuilds shared params (office_phone, ...) first, in
+    // config order, then contact= lines. If that would reorder the person's
+    // lines, write them all as contact= lines instead.
+    var order = function (e) { return CONFIG.contactParams.indexOf(e.f); };
+    var rebuilt = entries.filter(function (e) { return e.f; })
+      .sort(function (a, b) { return order(a) - order(b); })
+      .concat(entries.filter(function (e) { return !e.f; }));
+    var keepsOrder = rebuilt.every(function (e, i) { return e === entries[i]; });
+    entries.forEach(function (e) {
+      if (e.f && keepsOrder) {
+        if (e.value) p.set(e.f.param, compactPhone(e.value));
+        if (e.ext) p.set(e.f.extensionParam, e.ext);
       } else {
-        p.append(
-          "contact",
-          (label ? label + ":" : "") + value + (ext ? "|" + ext : ""),
-        );
+        p.append("contact", (e.label ? e.label + ":" : "") + e.value + (e.ext ? "|" + e.ext : ""));
       }
     });
+    if (!state.contacts.length) p.set("no_contacts", "1");
     // Only include notes when they differ from the defaults, to keep links short
     var notes = state.notes.filter(function (n) {
       return n.text.trim();
@@ -261,12 +302,18 @@
       notes.every(function (n, i) {
         return (
           n.text.trim() === defaultNotes[i].text &&
-          !!n.italic === !!defaultNotes[i].italic
+          !!n.italic === !!defaultNotes[i].italic &&
+          !(n.links && n.links.length)
         );
       });
-    if (!same) {
-      notes.forEach(function (n) {
+    if (!notes.length) {
+      p.set("no_notes", "1");
+    } else if (!same) {
+      notes.forEach(function (n, i) {
         p.append(n.italic ? "inote" : "note", n.text.trim());
+        (n.links || []).forEach(function (l) {
+          p.append("link", i + 1 + ":" + l.text + "|" + l.href);
+        });
       });
     }
     return p.toString();
@@ -294,14 +341,8 @@
     }
   }
 
-  var state = fromParams(readUrlParams());
-  if (state) {
-    // Params seed the draft; drop them so later edits survive a reload.
-    save(state);
-    history.replaceState(null, "", location.pathname);
-  } else {
-    state = loadSaved() || defaults();
-  }
+  // A link (or bookmark) wins; otherwise pick up the draft saved in this browser
+  var state = fromParams(readUrlParams()) || loadSaved() || defaults();
 
   // ---------- DOM ----------
 
@@ -343,6 +384,8 @@
       };
       if (row.dataset.template) n.template = row.dataset.template;
       if (row.dataset.highlight) n.highlight = row.dataset.highlight;
+      var links = getLinks(row);
+      if (links.length) n.links = links;
       return n;
     });
   }
@@ -363,6 +406,7 @@
     row.querySelector(".italic-input").checked = !!n.italic;
     if (n.template) row.dataset.template = n.template;
     if (n.highlight) row.dataset.highlight = n.highlight;
+    setLinks(row, n.links || []);
     els.notes.appendChild(row);
     if (focus) row.querySelector(".note-input").focus();
   }
@@ -405,6 +449,213 @@
     return n;
   }
 
+  // ---------- links in footer notes ----------
+  //
+  // Each note keeps its links as {text, href} pairs (in data-links on its
+  // row); the template links the first occurrence of each text. The note
+  // itself stays a plain textarea: linked words are drawn by a layer behind
+  // it, and clicking one opens a small Edit / Remove bubble.
+
+  function getLinks(row) {
+    try {
+      var links = JSON.parse(row.dataset.links || "[]");
+      if (!Array.isArray(links)) return [];
+      // Drop anything malformed (e.g. a hand-edited saved draft)
+      return links.filter(function (l) {
+        return l && typeof l.text === "string" && l.text && typeof l.href === "string" && StandSignature.safeHref(l.href);
+      });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function setLinks(row, links) {
+    row.dataset.links = JSON.stringify(links);
+  }
+
+  // "native-land.ca/maps" -> "https://native-land.ca/maps"; "" if not a web link
+  function normalizeUrl(value) {
+    var v = value.trim();
+    if (!v) return "";
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) {
+      if (/\s/.test(v) || v.indexOf(".") === -1) return "";
+      v = "https://" + v;
+    }
+    return StandSignature.safeHref(v);
+  }
+
+  function shortUrl(href) {
+    var s = href.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+    return s.length > 40 ? s.slice(0, 39) + "…" : s;
+  }
+
+  // This note's links, then site-wide ones like "privacy policy"
+  function rowRanges(row) {
+    var text = row.querySelector(".note-input").value;
+    return StandSignature.linkRanges(text, getLinks(row).concat(CONFIG.noteLinks || []));
+  }
+
+  function isAutoLink(link) {
+    return (CONFIG.noteLinks || []).indexOf(link) !== -1;
+  }
+
+  // Grow the box to fit its text, so it never scrolls and the highlight
+  // layer behind it wraps exactly the same way.
+  function autoGrow(ta) {
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + (ta.offsetHeight - ta.clientHeight) + "px";
+  }
+
+  // The layer behind the box repeats its text invisibly, with linked words
+  // wrapped in <mark> so they show through underlined and tinted.
+  function renderHighlights(row) {
+    var ta = row.querySelector(".note-input");
+    var layer = row.querySelector(".note-highlights");
+    var text = ta.value;
+    var pos = 0;
+    layer.textContent = "";
+    rowRanges(row).forEach(function (r, i) {
+      layer.append(text.slice(pos, r.start));
+      var mark = document.createElement("mark");
+      mark.className = "note-link" + (isAutoLink(r.link) ? " auto" : "");
+      mark.dataset.i = i;
+      mark.textContent = text.slice(r.start, r.end);
+      layer.append(mark);
+      pos = r.end;
+    });
+    // A trailing newline needs something after it to take up its line
+    layer.append(text.slice(pos) + (text.slice(-1) === "\n" ? " " : ""));
+    autoGrow(ta);
+  }
+
+  // Index into rowRanges() of the link the caret is in, or -1
+  function linkAtCaret(row) {
+    var ta = row.querySelector(".note-input");
+    if (ta.selectionStart !== ta.selectionEnd) return -1;
+    var c = ta.selectionStart;
+    var ranges = rowRanges(row);
+    for (var i = 0; i < ranges.length; i++) {
+      if (ranges[i].start <= c && c <= ranges[i].end) return i;
+    }
+    return -1;
+  }
+
+  function hideBubble(row) {
+    row.querySelector(".link-bubble").hidden = true;
+  }
+
+  // Show the link's address with Edit / Remove just under the linked word
+  function updateBubble(row) {
+    var i = linkAtCaret(row);
+    var r = rowRanges(row)[i];
+    var mark = row.querySelector('.note-highlights mark[data-i="' + i + '"]');
+    if (!r || !mark) return hideBubble(row);
+    var bubble = row.querySelector(".link-bubble");
+    var auto = isAutoLink(r.link);
+    var a = bubble.querySelector(".link-bubble-url");
+    a.href = r.href;
+    a.textContent = shortUrl(r.href);
+    a.title = r.href;
+    bubble.querySelector(".link-bubble-actions").hidden = auto;
+    bubble.querySelector(".link-bubble-auto").hidden = !auto;
+    bubble.dataset.text = r.link.text;
+    bubble.hidden = false;
+    var width = row.querySelector(".note-field").clientWidth;
+    bubble.style.top = mark.offsetTop + mark.offsetHeight + 6 + "px";
+    bubble.style.left = Math.max(0, Math.min(mark.offsetLeft, width - bubble.offsetWidth)) + "px";
+  }
+
+  var msgTimer;
+  function showLinkMsg(row, msg) {
+    var p = row.querySelector(".link-msg");
+    p.textContent = msg;
+    p.hidden = false;
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(function () { p.hidden = true; }, 5000);
+  }
+
+  function openLinkFormFor(row, text, href) {
+    hideBubble(row);
+    row.querySelector(".link-msg").hidden = true;
+    var form = row.querySelector(".link-form");
+    form.dataset.text = text;
+    row.querySelector(".link-form-text").textContent = text;
+    row.querySelector("[data-link-save]").textContent = href ? "Save link" : "Add link";
+    var input = row.querySelector(".link-url");
+    input.value = href || "";
+    input.removeAttribute("aria-invalid");
+    form.hidden = false;
+    input.focus();
+    input.select();
+  }
+
+  // 🔗 Link / Ctrl+K: link the selected words, or edit the link the caret is in
+  function openLinkForm(row) {
+    var ta = row.querySelector(".note-input");
+    var selected = ta.value.slice(ta.selectionStart, ta.selectionEnd).trim();
+    if (!selected) {
+      var r = rowRanges(row)[linkAtCaret(row)];
+      if (r && !isAutoLink(r.link)) return openLinkFormFor(row, r.link.text, r.link.href);
+      showLinkMsg(row, "Select the words you want to link in the note first, then click 🔗 Link.");
+      ta.focus();
+      return;
+    }
+    var existing = getLinks(row).filter(function (l) {
+      return l.text.toLowerCase() === selected.toLowerCase();
+    })[0];
+    openLinkFormFor(row, selected, existing && existing.href);
+  }
+
+  function closeLinkForm(row, refocus) {
+    var form = row.querySelector(".link-form");
+    form.hidden = true;
+    delete form.dataset.text;
+    if (refocus) row.querySelector(".note-input").focus();
+  }
+
+  function saveLink(row) {
+    var form = row.querySelector(".link-form");
+    var input = row.querySelector(".link-url");
+    var text = form.dataset.text;
+    if (form.hidden || !text) return;
+    var href = normalizeUrl(input.value);
+    if (!href) {
+      input.setAttribute("aria-invalid", "true");
+      showLinkMsg(row, "That doesn't look like a web address. Paste a link starting with https://");
+      input.focus();
+      return;
+    }
+    var links = getLinks(row).filter(function (l) {
+      return l.text.toLowerCase() !== text.toLowerCase();
+    });
+    links.push({ text: text, href: href });
+    setLinks(row, links);
+    row.querySelector(".link-msg").hidden = true;
+    closeLinkForm(row, true);
+    update();
+  }
+
+  function removeLink(row, text) {
+    setLinks(row, getLinks(row).filter(function (l) {
+      return l.text.toLowerCase() !== (text || "").toLowerCase();
+    }));
+    hideBubble(row);
+    update();
+    row.querySelector(".note-input").focus();
+  }
+
+  // Forget links whose words have been deleted, so they don't come back
+  // unexpectedly if the same words are typed again later.
+  function pruneLinks(row) {
+    var text = row.querySelector(".note-input").value.toLowerCase();
+    var links = getLinks(row);
+    var kept = links.filter(function (l) { return text.indexOf(l.text.toLowerCase()) !== -1; });
+    if (kept.length !== links.length) {
+      setLinks(row, kept);
+      update();
+    }
+  }
+
   function render() {
     els.preview.innerHTML = StandSignature.render(state, {
       assetBase: assetBase,
@@ -415,6 +666,10 @@
       },
     });
     els.code.textContent = outputHtml();
+    // Names the bookmark
+    var fullName = [state.firstName, state.lastName].join(" ").trim();
+    document.title = fullName ? fullName + " – Stand email signature" : "Stand Email Signature";
+    Array.prototype.forEach.call(els.notes.children, renderHighlights);
 
     var msgs = [];
     var ph = placeholderCount();
@@ -440,18 +695,42 @@
     readForm();
     save(state);
     render();
+    scheduleUrlSync();
+  }
+
+  // ---------- the page URL mirrors the signature ----------
+  //
+  // Kept in the hash (#/?first_name=...), so details never reach the server,
+  // in the same format as pre-fill links: bookmark it, or copy it.
+
+  function currentLink() {
+    var q = toParams(state);
+    return location.origin + location.pathname + (q ? "#/?" + q : "");
+  }
+
+  var urlTimer;
+  function syncUrl() {
+    clearTimeout(urlTimer);
+    var link = currentLink();
+    if (link !== location.href) history.replaceState(null, "", link);
+  }
+
+  function scheduleUrlSync() {
+    clearTimeout(urlTimer);
+    urlTimer = setTimeout(syncUrl, 300);
   }
 
   // ---------- actions ----------
 
   var statusTimer;
-  function setStatus(msg, isError) {
-    els.status.textContent = msg;
-    els.status.classList.toggle("error", !!isError);
-    clearTimeout(statusTimer);
-    statusTimer = setTimeout(function () {
-      els.status.textContent = "";
-    }, 5000);
+  function setStatus(msg, isError, el, ms) {
+    el = el || els.status;
+    el.textContent = msg;
+    el.classList.toggle("error", !!isError);
+    clearTimeout(el.statusTimer);
+    el.statusTimer = setTimeout(function () {
+      el.textContent = "";
+    }, ms || 5000);
   }
 
   function confirmPlaceholders() {
@@ -521,9 +800,9 @@
     }
   }
 
-  function copyText(text, okMsg) {
+  function copyText(text, okMsg, el) {
     var done = function () {
-      setStatus(okMsg);
+      setStatus(okMsg, false, el);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, function () {
@@ -550,7 +829,7 @@
       return ok;
     }
     function fail() {
-      setStatus("Couldn't copy automatically — please copy it manually.", true);
+      setStatus("Couldn't copy automatically — please copy it manually.", true, el);
     }
   }
 
@@ -621,9 +900,9 @@
   OFFICES.forEach(function (office) {
     var btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "btn small ghost";
-    btn.textContent = office.name;
-    btn.title = office.number;
+    btn.className = "btn small add-btn";
+    btn.textContent = "+ " + office.name + " office";
+    btn.title = "Office line with " + office.number + ", ready for your extension";
     btn.addEventListener("click", function () {
       useOffice(office);
     });
@@ -662,6 +941,63 @@
     }
   });
   moveOrRemove(els.notes);
+  els.notes.addEventListener("click", function (e) {
+    var row = e.target.closest(".row");
+    if (!row) return;
+    if (e.target.classList.contains("note-input")) return updateBubble(row);
+    var btn = e.target.closest("button");
+    if (!btn) return;
+    var bubbleText = row.querySelector(".link-bubble").dataset.text;
+    if (btn.hasAttribute("data-link")) openLinkForm(row);
+    else if (btn.hasAttribute("data-link-save")) saveLink(row);
+    else if (btn.hasAttribute("data-link-cancel")) closeLinkForm(row, true);
+    else if (btn.hasAttribute("data-unlink")) removeLink(row, bubbleText);
+    else if (btn.hasAttribute("data-link-edit")) {
+      var link = getLinks(row).filter(function (l) { return l.text === bubbleText; })[0];
+      if (link) openLinkFormFor(row, link.text, link.href);
+    }
+  });
+  // Keep focus in the box while using the bubble, so it doesn't close first
+  els.notes.addEventListener("mousedown", function (e) {
+    if (e.target.closest(".link-bubble")) e.preventDefault();
+  });
+  els.notes.addEventListener("input", function (e) {
+    if (e.target.classList.contains("note-input")) hideBubble(e.target.closest(".row"));
+  });
+  els.notes.addEventListener("focusout", function (e) {
+    if (!e.target.classList.contains("note-input")) return;
+    var row = e.target.closest(".row");
+    hideBubble(row);
+    pruneLinks(row);
+  });
+  els.notes.addEventListener("keyup", function (e) {
+    if (!e.target.classList.contains("note-input")) return;
+    if (/^(Arrow|Home|End|Page)/.test(e.key)) updateBubble(e.target.closest(".row"));
+  });
+  window.addEventListener("resize", function () {
+    Array.prototype.forEach.call(els.notes.children, function (row) {
+      renderHighlights(row);
+      hideBubble(row);
+    });
+  });
+  els.notes.addEventListener("keydown", function (e) {
+    var row = e.target.closest(".row");
+    if (!row) return;
+    if (e.target.classList.contains("note-input") && e.key === "Escape") {
+      hideBubble(row);
+    } else if (e.target.classList.contains("note-input") && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      openLinkForm(row);
+    } else if (e.target.classList.contains("link-url")) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        saveLink(row);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        closeLinkForm(row, true);
+      }
+    }
+  });
 
   $("add-contact").addEventListener("click", function () {
     addContactRow({ label: "", value: "", ext: "" }, true);
@@ -685,11 +1021,40 @@
   $("download").addEventListener("click", download);
   $("copy-link").addEventListener("click", function () {
     readForm();
-    var link = location.origin + location.pathname + "#/?" + toParams(state);
+    syncUrl();
     copyText(
-      link,
-      "Pre-fill link copied — anyone opening it gets these details filled in.",
+      currentLink(),
+      "Link copied. Opening it brings back this signature with all its details.",
+      $("footer-status"),
     );
+  });
+
+  // There's no standard way for a page to add a bookmark itself, so: the
+  // share sheet on phones (it has "Add Bookmark"), the shortcut elsewhere.
+  $("bookmark").addEventListener("click", function () {
+    readForm();
+    syncUrl();
+    var touch = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    if (touch && navigator.share) {
+      navigator.share({ title: document.title, url: currentLink() }).catch(function () {});
+      return;
+    }
+    var mac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+    setStatus(
+      touch
+        ? "Use your browser's menu (⋮ or the share icon) to bookmark this page."
+        : "Press " + (mac ? "⌘+D" : "Ctrl+D") + " to bookmark this page.",
+      false,
+      $("footer-status"),
+      10000,
+    );
+  });
+  // Make sure a quick Ctrl/⌘+D straight after typing saves the latest version
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+      readForm();
+      syncUrl();
+    }
   });
   $("reset").addEventListener("click", function () {
     if (!confirm("Clear all fields and start over?")) return;
@@ -702,6 +1067,7 @@
     history.replaceState(null, "", location.pathname);
     fillForm();
     render();
+    syncUrl();
   });
 
   // A new pre-fill link opened in this tab only changes the hash; reload to apply it.
@@ -711,4 +1077,5 @@
 
   fillForm();
   render();
+  syncUrl(); // tidy whatever link we arrived with into the canonical form
 })();

@@ -9,7 +9,9 @@ Fill in your details, check the preview, then:
 - **Copy signature for Gmail** copies the rendered signature (rich text). In Gmail go to Settings → See all settings → General → Signature and paste it in.
 - **Copy HTML code** / **Download .html** give you the raw HTML for Outlook, Apple Mail, etc.
 
-Your draft is saved in your browser so you can come back to it.
+To link words in a footer note (e.g. a nation's name in a land acknowledgement), select them and click **🔗 Link**, or press Ctrl/⌘+K, then paste the address. Linked words are underlined right in the note box; click one to edit or remove its link. The box itself stays plain text (the underlines are drawn by a layer behind it), and each link applies to the first place those words appear. If you delete the linked words, the link is dropped. Only `http(s)` addresses are accepted.
+
+**Bookmark your signature.** The page's address updates as you type and holds everything you've entered, so bookmarking it (**🔖 Bookmark**, or Ctrl/⌘+D) brings your signature back later, rebuilt with the current template. That makes it quick to update everyone's signature after a template change: open the bookmark and copy again. **Copy link** copies the same address. Details live in the `#` part of the address, so they're never sent to the server. The draft is also saved in your browser.
 
 ## Pre-filling from links
 
@@ -35,6 +37,8 @@ Signature-only extras:
 | `pronouns` | e.g. `he/him`. Matched to the field's suggestions ignoring case and spaces, so `he/him` becomes `He / Him`. Anything else is kept as given. |
 | `contact` | Extra line as `Label:Value` or `Label:Value\|Ext`. Repeatable. |
 | `note` / `inote` | Footer note / italic footer note. Repeatable. Replaces the default notes. |
+| `link` | `N:Words\|https://…`: link those words in the Nth note. Repeatable. |
+| `no_contacts=1` / `no_notes=1` | The person removed every contact line / note (so the defaults don't come back). |
 
 Example, the same params the QR generator uses plus `pronouns`:
 
@@ -42,7 +46,7 @@ Example, the same params the QR generator uses plus `pronouns`:
 https://sig.stand.earth/#/?first_name=Alex&last_name=Example&pronouns=They%20%2F%20Them&title=Campaigner&office_phone=%2B13607342951&extension=123&cell_phone=%2B13605550123&signal=alexexample.01
 ```
 
-The **Copy pre-fill link** button in the app builds one of these links from whatever you've filled in.
+The page keeps its own address in this format as you edit, which is what makes bookmarks work. **Copy link** copies it. Bookmarks depend on these parameter names, so keep them stable: add new ones rather than renaming.
 
 ## Development
 

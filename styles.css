@@ -12,6 +12,8 @@
   --warn-border: #e8cf6a;
   --warn-text: #5c4a00;
   --ph-bg: #fff1a8;
+  --link: #1a5fd0;
+  --link-bg: rgba(26, 95, 208, 0.12);
   --radius: 8px;
 }
 
@@ -27,6 +29,8 @@
     --warn-bg: #3a3114;
     --warn-border: #6b5a1f;
     --warn-text: #f3e2a4;
+    --link: #8ab4ff;
+    --link-bg: rgba(138, 180, 255, 0.2);
   }
 }
 
@@ -118,6 +122,7 @@ body {
 }
 
 input[type="text"],
+input[type="url"],
 textarea {
   width: 100%;
   padding: 8px 10px;
@@ -160,10 +165,6 @@ textarea:focus {
 .hint a {
   color: inherit;
 }
-.preset-row + .preset-row,
-.preset-row .preset-row {
-  margin: 0;
-}
 code {
   font-size: 12px;
   background: var(--code-bg);
@@ -193,19 +194,203 @@ code {
   flex: 0 0 64px;
   min-width: 0;
 }
-.note-row .note-input {
+.note-main {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Note box: a plain textarea over a layer that draws the linked words.
+   Both must lay text out identically, so they share every text metric. */
+.note-field {
+  position: relative;
+}
+.note-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--input-bg);
+  pointer-events: none;
+}
+.note-highlights,
+.note-field .note-input {
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: normal;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.note-highlights {
+  color: transparent;
+}
+.note-highlights mark {
+  color: transparent;
+  background: var(--link-bg);
+  border-radius: 2px;
+  text-decoration: underline;
+  text-decoration-color: var(--link);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+.note-highlights mark.auto {
+  background: transparent;
+  text-decoration-style: dotted;
+}
+.note-field .note-input {
+  position: relative;
+  display: block;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+}
+.link-bubble {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 6px 4px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.link-bubble-url {
+  color: var(--link);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.link-bubble-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.link-bubble-btn {
+  font: inherit;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+}
+.link-bubble-btn:hover {
+  background: var(--code-bg);
+}
+.link-bubble-btn.danger {
+  color: var(--red);
+}
+.link-bubble-auto {
+  color: var(--muted);
+  font-style: italic;
+  flex-shrink: 0;
+}
+
+/* Each note is a card: the box, then one toolbar with formatting on the
+   left and arranging/removing on the right. */
+.note-row {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+.note-row > * + * {
+  margin-top: 6px;
+}
+.note-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.note-format,
+.note-arrange {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.note-format {
+  gap: 12px;
+}
+
+/* "Add a line: / Add a note:" bars under each list */
+.add-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+.add-bar-group {
+  display: contents;
+}
+.add-bar-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 2px;
+}
+.btn.add-btn {
+  background: transparent;
+  font-weight: 500;
+}
+.link-msg {
+  margin: 0;
+  font-size: 12px;
+  color: var(--warn-text);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+.link-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+}
+.link-form[hidden],
+.link-msg[hidden],
+.link-bubble[hidden],
+.link-bubble [hidden] {
+  display: none;
+}
+.link-form-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 100%;
+}
+.link-form-text {
+  font-weight: 600;
+}
+.link-url {
+  flex: 1 1 200px;
+  padding: 4px 8px !important;
+}
+.link-url[aria-invalid="true"] {
+  border-color: var(--red);
 }
 .row-tools {
   display: flex;
   gap: 2px;
   align-items: center;
   flex-shrink: 0;
-}
-.note-row .row-tools {
-  flex-direction: column;
-  align-items: stretch;
 }
 .italic-toggle {
   font-size: 12px;
@@ -289,16 +474,15 @@ code {
   }
 }
 
-.preset-row {
+
+.footer-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  gap: 8px;
 }
-.preset-row .hint {
-  margin: 0 0 0 8px;
+.footer-hint {
+  margin: 12px 0 0;
 }
-
 .form-footer {
   display: flex;
   justify-content: space-between;
